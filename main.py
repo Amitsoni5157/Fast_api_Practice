@@ -63,13 +63,17 @@ def add_product(product: Product, db: Session = Depends(get_db)):
         return product
 
 @app.put("/product")
-def update_product(id: int, product: Product):
-    for i in range(len(products)):
-        if products[i].id == id:
-            products[i] = product
-            return "Product Added successfully"
-
-    return "No product found"
+def update_product(id: int, product: Product, db: Session = Depends(get_db)):
+     db_product = db.query(database_models.Product).filter(database_models.Product.id == id).first()   
+     if db_product:
+            db_product.name = product.name
+            db_product.description = product.description
+            db_product.price = product.price
+            db_product.quantity = product.quantity
+            db.commit()
+            return "Product updated"
+     else:
+        return "No product found"
 
 @app.delete("/product")
 def delete_product(id: int):
