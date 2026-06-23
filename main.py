@@ -1,7 +1,14 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from models import Product
-
+import database_models
+from database import session, engine
+from database_models import Base
+from sqlalchemy.orm import Session
 app = FastAPI()
+
+# database_models.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
+
 
 @app.get("/")
 def greet():
@@ -15,22 +22,45 @@ products =[
     Product(id=5, name="charger", description="it is fast laptop charger", price=200, quantity=13)
 ]
 
+def get_db():
+    db = session()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def init_db():
+    db = session()
+
+    count = db.query(database_models.Product).count
+
+    if count == 0:
+        for product in products:
+            db.add(database_models.Product(**product.model_dump()))
+
+    db.commit()
+
+init_db()
+
 @app.get("/products")
-def get_all_products():
-    return products
+def get_all_products(db: Session = Depends(get_db)):
+
+    db_products = db.query(database_models.Product).all()
+
+    return db_products
 
 @app.get("/product/{id}")
-def get_product_by_id(id: int):
-    for product in products:
-        if product.id == id:
-            return product
-
+def get_product_by_id(id: int, db: Session = Depends(get_db)):
+    db_product = db.query(database_models.Product).filter(database_models.Product.id == id).first()
+    if db_product:
+            return db_product
     return "product not found"
 
 @app.post("/product")
-def add_product(product: Product):
-    products.append(product)
-    return product
+def add_product(product: Product, db: Session = Depends(get_db)):
+        db.add(database_models.Product(**product.model_dump()))
+        db.commit()
+        return product
 
 @app.put("/product")
 def update_product(id: int, product: Product):
@@ -47,5 +77,5 @@ def delete_product(id: int):
         if products[i].id == id:
             del products[i]
             return "Product Deleted"
-            
+
     return "Product not found"
